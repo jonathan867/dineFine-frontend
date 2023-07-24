@@ -2,9 +2,19 @@
   text-align: center;
 }
 
-.hi {
-  height: 100%;
+.Header {
+  height: 89vh;
   width: 100%;
+  position: relative;
+    background: url("./assets/Header.png");
+    background-size: cover;
+    background-position: center;
+    background-repeat: repeat;
+}
+@media (min-width: 1300px) {
+  .Header {
+    padding-left: 9%;
+  }
 }
 
 .map-container {
@@ -13,7 +23,7 @@
 }
 
 .navMap-container {
-  height: 50vh;
+  height: 60vh;
   width: 100%;
 }
 

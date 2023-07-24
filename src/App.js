@@ -1,10 +1,13 @@
-import { useMemo, useState, useEffect } from "react";
+import { React, useMemo, useState, useEffect } from "react";
 import { GoogleMap, useLoadScript } from "@react-google-maps/api";
 
 import 'bootstrap/dist/css/bootstrap.min.css'; // formats and styling
 import "./App.css"
 import { Form, Input, Button } from 'antd';
+import Select from 'react-select'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
+import Typewriter from 'typewriter-effect';
+import { motion } from 'framer-motion';
 
 import { QuestionOutlined, LinkOutlined } from '@ant-design/icons'; // icons and assets
 import Logo from './assets/logo.png';
@@ -93,11 +96,60 @@ function App() {
     };
 
     // Form fields
+    const cuisineOptions = [
+        { value: 'All', label: 'All' },
+        { value: 'Chinese', label: 'Chinese' },
+        { value: 'Classic', label: 'Classic' },
+        { value: 'Contemporary', label: 'Contemporary' },
+        { value: 'Creative', label: 'Creative' },
+        { value: 'French', label: 'French' },
+        { value: 'Italian', label: 'Italian' },
+        { value: 'Japanese', label: 'Japanese' },
+        { value: 'Mediterranean', label: 'Mediterranean' },
+        { value: 'Modern', label: 'Modern' },
+        { value: 'Regional Cuisine', label: 'Regional Cuisine' },
+        { value: 'Seafood', label: 'Seafood' },
+        { value: 'Street Food', label: 'Street Food' },
+        { value: 'Thai', label: 'Thai' },
+        { value: 'Traditional', label: 'Traditional' }
+    ];
+    const maxPriceOptions = [
+        { value: 4, label: '$$$$' },
+        { value: 3, label: '$$$' },
+        { value: 2, label: '$$' },
+        { value: 1, label: '$' }
+    ];
+
+    const [cuisine, setCuisine] = useState('All');
+    const [maxPrice, setMaxPrice] = useState(4);
+    const cuisineChange = (value) => {
+        setCuisine(value.value);
+    };
+    const maxPriceChange = (value) => {
+        setMaxPrice(value.value);
+    };
+
     const [fields, setFields] = useState([{ name: ['lat'], value: 43.65607 }, { name: ['lng'], value: -79.38647 }]);
     const [form] = Form.useForm();
 
     // Closest restaurant api consts
     const [closestData, setClosestData] = useState(initialRestaurant);
+    const noRestaurant = [{
+        "id": null,
+        "Name": "No Restaurants Matching Criteria Nearby",
+        "Address": "",
+        "Location": "",
+        "Price": "",
+        "Cuisine": "",
+        "Longitude": "",
+        "Latitude": "",
+        "PhoneNumber": "",
+        "Url": "",
+        "WebsiteUrl": "",
+        "Award": "",
+        "FacilitiesAndServices": "",
+        "AwardDescription": ""
+    }]
 
     const handleMarkerSubmit = () => {
         FindClosest(navMapPoint.lat, navMapPoint.lng);
@@ -120,33 +172,39 @@ function App() {
 
     const FindClosest = async (lat, lng) => {
         try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_LINK}/find-closest/${lat}/${lng}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_LINK}/find-closest/${lat}/${lng}/${maxPrice}/${cuisine}`);
             const restaurantsJsonData = await response.json();
 
-            setClosestData(restaurantsJsonData);
+            if (restaurantsJsonData.length > 0) {
+                setClosestData(restaurantsJsonData);
 
-            const name = encodeURIComponent(restaurantsJsonData[0].Name);
-            const address = encodeURIComponent(restaurantsJsonData[0].Address);
-            const photoDataResponse = await fetch(`${process.env.REACT_APP_BACKEND_LINK}/get-image-url/${name}/${address}`);
-            const photoData = await photoDataResponse.json();
+                const name = restaurantsJsonData[0].Name;
+                const address = restaurantsJsonData[0].Address.replace(/\//g, " ");
+                const photoDataResponse = await fetch(`${process.env.REACT_APP_BACKEND_LINK}/get-image-url/${name}/${address}`);
+                const photoData = await photoDataResponse.json();
 
-            const photoRef = photoData?.photoRef;
-            if (photoRef) {
-                setPhotoUrl(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=300&photo_reference=${photoRef}&key=${process.env.REACT_APP_MAP_API_KEY}`);
+                const photoRef = photoData?.photoRef;
+                if (photoRef) {
+                    setPhotoUrl(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=300&photo_reference=${photoRef}&key=${process.env.REACT_APP_MAP_API_KEY}`);
+                } else {
+                    setPhotoUrl(NoImage); // Handle the scenario when photoRef is not available
+                }
+
+                const htmlAttributions = photoData?.htmlAttributions;
+                if (htmlAttributions && htmlAttributions.length > 0) {
+                    const linkString = htmlAttributions[0].match(/"(.*?)"/)[1];
+                    setPhotoCredits(linkString);
+                } else {
+                    setPhotoCredits("");
+                }
             } else {
-                setPhotoUrl(NoImage); // Handle the scenario when photoRef is not available
-            }
-
-            const htmlAttributions = photoData?.htmlAttributions;
-            if (htmlAttributions && htmlAttributions.length > 0) {
-                const linkString = htmlAttributions[0].match(/"(.*?)"/)[1];
-                setPhotoCredits(linkString);
-            } else {
+                setClosestData(noRestaurant);
+                setPhotoUrl(NoImage);
                 setPhotoCredits("");
             }
 
         } catch (error) {
-            console.error('An error occurred:', error);
+            console.error('An error occurred:'); //console.error('An error occurred:', error);
         }
     };
     useEffect(() => {
@@ -184,7 +242,7 @@ function App() {
 
     return (
         <>
-            <div className='col-12 text-center mb-2 ps-2 pe-2 d-flex justify-content-between align-items-center' style={{ backgroundColor: '#E35134' }}>
+            <div className='col-12 text-center ps-2 pe-2 d-flex justify-content-between align-items-center' style={{ backgroundColor: '#E35134' }}>
                 <img className='m-3' style={{ width: '60px', height: 'auto' }}
                     src={Logo}
                     alt="logo"
@@ -194,16 +252,19 @@ function App() {
                     alt="site name"
                 />
                 <div className='m-3 d-flex justify-content-center align-items-center' style={{ width: '60px', height: '60px', borderRadius: '50px', backgroundColor: 'white', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)' }}>
-                    <QuestionOutlined onClick={() => toggleModal()} className='ml-2 mr-3' style={{ fontSize: '45px', color: '#E35134' }} />
+                    <QuestionOutlined onClick={() => toggleModal()} className='ml-2 mr-3' style={{ fontSize: '45px', color: '#E35134', transition: 'color 0.3s ease' }}
+                        onMouseEnter={(e) => { e.target.style.color = 'orange'; }}
+                        onMouseLeave={(e) => { e.target.style.color = '#E35134'; }}
+                    />
                 </div>
             </div>
 
             <Modal isOpen={modalOpen} toggle={toggleModal}>
-                <ModalHeader className='' toggle={toggleModal} style={{ display: 'flex', justifyContent: 'center', color: "white", backgroundColor: '#E35134' }}>
-                    <div className=''> Welcome to DineFine! </div>
+                <ModalHeader toggle={toggleModal} style={{ display: 'flex', justifyContent: 'center', color: "white", backgroundColor: '#E35134' }}>
+                    <div> Welcome to DineFine! </div>
                 </ModalHeader>
                 <ModalBody>
-                    <div className='text-center m-5' style={{ fontWeight: "bold", color: '#E35134' }}> Find your closest fine dining experience {'\u{1F4CD}'} </div>
+                    <div className='text-center m-5 pt-3 pb-3' style={{ fontWeight: "bold", color: '#E35134' }}> Find your closest fine dining experience {'\u{1F4CD}'} </div>
                     <div className='mt-5 text-center' style={{ fontWeight: "bold", fontSize: "24px" }}> Global Awarded Restaurants Map </div>
                     <div className='d-flex justify-content-center'>
                         <img className='m-3' style={{ width: '370px', height: 'auto' }}
@@ -224,7 +285,7 @@ function App() {
                         </div>
                         <div> • &nbsp;Enter a location with map marker or coordinates &nbsp;&nbsp;&nbsp;&nbsp;to find the nearest awarded restaurant! </div>
                     </div>
-                    <div className='mt-5 mb-3 text-center' style={{ fontWeight: "bold", fontSize: "24px" }}> Powered By... </div>
+                    <div className='mt-5 mb-4 pt-5 text-center' style={{ fontWeight: "bold", fontSize: "24px" }}> Powered By... </div>
                     <div className="me-5 ms-5">
                         <div className='mt-3' style={{ display: "flex", flexDirection: "row", alignItems: "flex-end" }}>
                             <div className='mb-2 me-3' style={{ fontSize: "20px" }}> Backend: </div>
@@ -248,30 +309,59 @@ function App() {
                 <ModalFooter style={{ display: 'flex', justifyContent: 'center', color: "gray" }}> Jonathan Feng - 2023</ModalFooter>
             </Modal>
 
-            <div className='col-10 offset-1 text-center mt-5'>
-                <h2 className='text-center'> All Michelin Star/Bib Gourmand Restaurants Across the World</h2>
+            <div className='Header'>
+                <div className='col-5 offset-1 pt-5' style={{ fontSize: "70px", fontWeight: "500", color: '#E35134' }}>
+                    <div style={{ marginTop: "150px" }}>
+                        <h1 style={{ fontSize: "65px", color: '#3b3b3b' }}> Fine Dining </h1>
+                        <Typewriter
+                            options={{
+                                strings: ['in Bangkok, Thailand', 'near my location', 'in Chicago, USA', 'for my price range', 'in São Paulo, Brazil', 'near (-16.234º, 18.389º)'],
+                                autoStart: true,
+                                loop: true,
+                                delay: 100,
+                                deleteSpeed: 100,
+                                pauseFor: 2000,
+                            }}
+                        />
+                    </div>
+                </div>
             </div>
 
-            <div className='col-10 offset-1 mt-4' style={{ boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)' }}>
-                {!isLoaded ? (
-                    <h1>Loading...</h1>
-                ) : (
-                    // map-container has NECESSARY sizing in App.css
-                    <GoogleMap mapContainerClassName="map-container" center={center} zoom={1.8} onLoad={addMarkers} />
-                )}
-                {/* <div className='col-5 justify-content-center me-3' style={{ backgroundColor: 'pink', width: "100%", height: "70vh" }}>
-                    hi
-                </div> */}
+            <div className='col-10 offset-1 text-center' style={{ marginTop: "250px" }}>
+                <motion.div whileInView={{ y: [100, 0], opacity: [0, 1] }} transition={{ duration: 1.5 }}>
+                    <h2 className='text-center' style={{ fontSize: "40px", marginBottom: "50px" }}>
+                        Set the <span style={{ color: '#E35134' }}> price range </span>
+                        and <span style={{ color: '#E35134' }}> cuisine filter </span>
+                        for the restaurants you are looking for &nbsp;{'\u{1F50D}'}
+                    </h2>
+                </motion.div>
+                <motion.div whileInView={{ y: [100, 0], opacity: [0, 1] }} transition={{ duration: 1.5 }} style={{ marginTop: "200px" }}>
+                    <h2 className='text-center' style={{ fontSize: "40px", marginTop: "70px", marginBottom: "50px" }}>
+                        Enter a location via interactive <span style={{ color: '#E35134' }}> map marker </span>
+                        or <span style={{ color: '#E35134' }}> coordinates </span> {'\u{1F4CD}'}
+                    </h2>
+                </motion.div>
+                <motion.div whileInView={{ y: [100, 0], opacity: [0, 1] }} transition={{ duration: 1.5 }} style={{ marginTop: "200px", marginBottom: "250px" }}>
+                    <h2 className='text-center' style={{ fontSize: "40px", marginTop: "70px", marginBottom: "50px" }}> Find the closest awarded restaurant! &nbsp;{'\u{1FAD5}'}</h2>
+                </motion.div>
             </div>
 
-            <div className='col-10 offset-1 text-center mt-5'>
-                <hr style={{ borderTop: "1px solid gray", margin: "10px 0" }} />
-                <h2 className='text-center' style={{ fontWeight: "bold", color: '#E35134', marginTop: "70px", marginBottom: "50px" }}> Enter a location and find the closest awarded restaurant {'\u{1F4CD}'}</h2>
-            </div>
-
-            <div className='row col-10 offset-1 justify-content-center mt-5 mb-5' style={{ backgroundColor: '#F5F5F5' }}>
+            <div className='row col-10 offset-1 justify-content-center mt-5 mb-5' style={{ backgroundColor: 'white' }}>
+                <div className=' justify-content-center text-gray pt-4 ps-5 pe-5 pb-4 mb-5' style={{ backgroundColor: '#F5F5F5', borderRadius: '5px', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.08)' }}>
+                    <h3 className='mt-3 mb-4' style={{ fontWeight: 'bold' }}> Search Filters </h3>
+                    <div className='mb-3' style={{ display: 'flex', flexDirection: 'row' }}>
+                        <div className='col-6 pe-4'>
+                            <label> Maximum Price Category </label>
+                            <Select onChange={maxPriceChange} options={maxPriceOptions} />
+                        </div>
+                        <div className='col-6'>
+                            <label> Cuisine Type </label>
+                            <Select onChange={cuisineChange} options={cuisineOptions} />
+                        </div>
+                    </div>
+                </div>
                 <div className='col-6 justify-content-center ps-0 pe-4' style={{ backgroundColor: 'white' }}>
-                    <div className='' style={{ boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.08)' }}>
+                    <div style={{ boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.08)' }}>
                         {!isLoaded ? (
                             <h1>Loading...</h1>
                         ) : (
@@ -284,7 +374,10 @@ function App() {
                     </div>
                     <div className="text-center mt-2 mb-4" style={{ fontWeight: "bold", color: '#E35134' }}> Click a point on the map to set marker location </div>
                     <div className='d-flex justify-content-center mt-2 mb-5'>
-                        <Button key='submitMarker' onClick={handleMarkerSubmit} style={{ color: "white", backgroundColor: "#E35134", borderColor: "#E35134", width: "240px", height: "40px", borderRadius: '8px', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)' }}>
+                        <Button key='submitMarker' onClick={handleMarkerSubmit} style={{ color: "white", backgroundColor: "#E35134", borderColor: "#E35134", width: "240px", height: "40px", borderRadius: '8px', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)', transition: 'background-color 0.3s ease' }}
+                            onMouseEnter={(e) => { e.target.style.backgroundColor = '#f26346'; }}
+                            onMouseLeave={(e) => { e.target.style.backgroundColor = '#E35134'; }}
+                        >
                             Find By Map Marker
                         </Button>
                     </div>
@@ -303,66 +396,85 @@ function App() {
                         </Form>
                     </div>
                     <div className='d-flex justify-content-center mt-5'>
-                        <Button key='submitCoord' onClick={handleCoordSubmit} style={{ color: "white", backgroundColor: "#E35134", borderColor: "#E35134", width: "240px", height: "40px", borderRadius: '8px', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)' }}>
+                        <Button key='submitCoord' onClick={handleCoordSubmit} style={{ color: "white", backgroundColor: "#E35134", borderColor: "#E35134", width: "240px", height: "40px", borderRadius: '8px', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)', transition: 'background-color 0.3s ease' }}
+                            onMouseEnter={(e) => { e.target.style.backgroundColor = '#f26346'; }}
+                            onMouseLeave={(e) => { e.target.style.backgroundColor = '#E35134'; }}
+                        >
                             Find By Coordinates
                         </Button>
                     </div>
                 </div>
-                <div className='col-6 p-4 justify-content-center' style={{ backgroundColor: '#F5F5F5', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.08)' }}>
-                    <h3> {closestData[0].Name} </h3>
-                    {/* <div className='col-5 d-flex justify-content-center mt-3 mb-2'>
-                        <div >
-                            <img id="restaurant-photo" src={RestaurantPhotoUrl} alt="Restaurant" style={{ height: "30vh" }} />
-                        </div>
-                    </div> */}
+                <div className='col-6 p-4 justify-content-center' style={{ backgroundColor: '#F5F5F5', borderRadius: '5px', boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.08)' }}>
+                    <h2 style={{ color: "#E35134", marginBottom: "30px", fontWeight:'bold' }}> {closestData[0].Name} </h2>
                     <div className='col-12 d-flex justify-content-center mt-3 mb-2'>
                         <img id="restaurant-photo" src={RestaurantPhotoUrl} alt="Restaurant" style={{ maxHeight: "30vh", maxWidth: "100%" }} />
                     </div>
-                    <div className="mb-4" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mt-3 mb-5" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontSize: "14px", width: "120px" }}> Photo credits: </div>
                         <div className="d-flex justify-content-end mb-0 ms-auto me-5">
                             <a id="photo-credits-link" style={{ fontSize: "14px", width: 'calc(100% - 120px)' }} href={PhotoCredits} target="_blank" rel="noopener noreferrer"> <LinkOutlined /> </a>
                         </div>
                     </div>
-                    <div className="mb-2" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mb-3" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontWeight: "bold", fontSize: "14px", width: "120px" }}> Award: </div>
                         <div style={{ fontSize: "14px", width: 'calc(100% - 120px)' }}> {closestData[0].Award} &nbsp;{stars(closestData[0].Award)} </div>
                     </div>
-                    <div className="mb-2" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mb-3" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontWeight: "bold", fontSize: "14px", width: "120px" }}> Cuisine: </div>
                         <div style={{ fontSize: "14px", width: 'calc(100% - 120px)' }}> {closestData[0].Cuisine} </div>
                     </div>
-                    <div className="mb-2" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mb-3" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontWeight: "bold", fontSize: "14px", width: "120px" }}> Price: </div>
                         <div style={{ fontSize: "14px", width: 'calc(100% - 120px)' }}> {closestData[0].Price} </div>
                     </div>
-                    <div className="mb-2" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mb-3" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontWeight: "bold", fontSize: "14px", width: "120px" }}> Address: </div>
                         <div style={{ fontSize: "14px", width: 'calc(100% - 120px)' }}> {closestData[0].Address} </div>
                     </div>
-                    <div className="mb-2" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mb-3" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontWeight: "bold", fontSize: "14px", width: "120px" }}> City: </div>
                         <div style={{ fontSize: "14px", width: 'calc(100% - 120px)' }}> {closestData[0].Location} </div>
                     </div>
-                    <div className="mb-2" style={{ display: "flex", flexDirection: "row" }}>
+                    <div className="mb-3" style={{ display: "flex", flexDirection: "row" }}>
                         <div style={{ fontWeight: "bold", fontSize: "14px", width: "120px" }}> Website: </div>
                         <div className="d-flex justify-content-end mb-0 ms-auto me-5">
                             <a style={{ fontSize: "14px", width: 'calc(100% - 120px)' }} href={closestData[0].WebsiteUrl} target="_blank" rel="noopener noreferrer"> <LinkOutlined /> </a>
                         </div>
                     </div>
                     <div className="mb-4" style={{ display: "flex", flexDirection: "row" }}>
-                        <div style={{ fontWeight: "bold", fontSize: "14px", width: "200px" }}> Michelin Guide URL: </div>
+                        <div style={{ fontWeight: "bold", fontSize: "14px", width: "200px" }}> Michelin Guide: </div>
                         <div className="d-flex justify-content-end mb-0 ms-auto me-5">
                             <a style={{ fontSize: "14px", width: 'calc(100% - 120px)' }} href={closestData[0].Url} target="_blank" rel="noopener noreferrer"> <LinkOutlined /> </a>
                         </div>
                     </div>
-                    <div style={{ fontWeight: "bold", fontSize: "14px" }}> Facilities and Services: </div>
-                    <div className='mb-2' style={{ fontSize: "14px" }}> {addSpaceAfterComma(closestData[0].FacilitiesAndServices)} </div>
-                    <div style={{ fontWeight: "bold", fontSize: "14px" }}> Award Description: </div>
+                    <div className="mb-2" style={{ fontWeight: "bold", fontSize: "14px" }}> Facilities and Services: </div>
+                    <div className='mb-4' style={{ fontSize: "14px" }}> {addSpaceAfterComma(closestData[0].FacilitiesAndServices)} </div>
+                    <div className="mb-2" style={{ fontWeight: "bold", fontSize: "14px" }}> Award Description: </div>
                     <div style={{ fontSize: "14px" }}> {closestData[0].AwardDescription} </div>
                 </div>
             </div>
-            <div className='col-12 text-center p-3 d-flex justify-content-center align-items-center' style={{ marginTop: "120px", color: "white", backgroundColor: '#E35134' }}>
+
+            <div className='col-10 offset-1 text-center mt-5'>
+                <hr style={{ borderTop: "1px solid gray", marginTop: "150px", marginBottom: "120px" }} />
+                <motion.div whileInView={{ y: [40, 0], opacity: [0, 1] }} transition={{ duration: 1.5 }}>
+                    <h2 className='text-center mb-4' style={{ fontWeight: 'bold' }}> All Michelin Star/Bib Gourmand Restaurants Across the World </h2>
+                    <h4 className='text-center' style={{ color: '#E35134' }}> Click a marker for restaurant info </h4>
+                </motion.div>
+            </div>
+
+            <div className='col-10 offset-1' style={{ boxShadow: '4px 4px 8px rgba(0, 0, 0, 0.2)', marginTop: "50px" }}>
+                {!isLoaded ? (
+                    <h1>Loading...</h1>
+                ) : (
+                    // map-container has NECESSARY sizing in App.css
+                    <GoogleMap mapContainerClassName="map-container" center={center} zoom={1.8} onLoad={addMarkers} />
+                )}
+                {/* <div className='col-5 justify-content-center me-3' style={{ backgroundColor: 'pink', width: "100%", height: "70vh" }}>
+                    hi
+                </div> */}
+            </div>
+
+            <div className='col-12 text-center p-4 d-flex justify-content-center align-items-center' style={{ marginTop: "150px", color: "white", backgroundColor: '#E35134' }}>
                 Jonathan Feng - 2023
             </div>
         </>
